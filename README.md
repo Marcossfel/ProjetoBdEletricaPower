@@ -52,7 +52,7 @@ id INT NOT NULL AUTO_INCREMENT
 ,cpf CHAR (12) NOT NULL
 ,endereço VARCHAR (200)
 ,situaçao CHAR (1) NOT NULL DEFAULT 'A'
-,data_cadastro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+,data_contratacao DATETIME NOT NULL 
 ,cidade_id INT NOT NULL
 ,CONSTRAINT pk_funcionario PRIMARY KEY (id)
 ,CONSTRAINT fk_funcionario_cidade FOREIGN KEY (cidade_id) REFERENCES cidade (id)
@@ -60,25 +60,25 @@ id INT NOT NULL AUTO_INCREMENT
 ,CONSTRAINT funcionario_unico UNIQUE (cpf,cidade_id)
 );
 
-INSERT INTO funcionario (nome,cpf,endereço,cidade_id) VALUES ('MARCOS',49978367845,'RUA DR SILVIO VIDAL JAD SÃO CRISTOVÃO NUMERO 355',1);
-INSERT INTO funcionario (nome,cpf,endereço,cidade_id) VALUES ('ADRIANO',59223261233,'AVENIDA TANCREDO NEVES JAD PRUDÊNCIO NUMERO 945',1);
-INSERT INTO funcionario (nome,cpf,endereço,cidade_id) VALUES ('RONALDO',10116445574,'RUA MANOEL RIBAS CENTRO NUMERO 641',1);
-INSERT INTO funcionario (nome,cpf,endereço,cidade_id) VALUES ('JOANA',21318836958,'RUA SANTA CATARINA VILA CITY NUMERO 123',1);
+INSERT INTO funcionario (nome,cpf,endereço,data_contratacao,cidade_id) VALUES ('MARCOS',49978367845,'RUA DR SILVIO VIDAL JAD SÃO CRISTOVÃO NUMERO 355','2021-10-05',1);
+INSERT INTO funcionario (nome,cpf,endereço,data_contratacao,cidade_id) VALUES ('ADRIANO',59223261233,'AVENIDA TANCREDO NEVES JAD PRUDÊNCIO NUMERO 945','2021-11-05',1);
+INSERT INTO funcionario (nome,cpf,endereço,data_contratacao,cidade_id) VALUES ('RONALDO',10116445574,'RUA MANOEL RIBAS CENTRO NUMERO 641','2019-10-15',1);
+INSERT INTO funcionario (nome,cpf,endereço,data_contratacao,cidade_id) VALUES ('JOANA',21318836958,'RUA SANTA CATARINA VILA CITY NUMERO 123','2023-10-05',1);
 
-DROP FUNCTION pegar_funcionario;
+/**DROP FUNCTION pegar_funcionario;**/
 DELIMITER //
 CREATE FUNCTION pegar_funcionario( pid INT) 
 RETURNS VARCHAR (120) 
 DETERMINISTIC
 BEGIN
     DECLARE retorno VARCHAR(120);
-    DECLARE quantidade INT (1);
+    DECLARE quantidade INT;
     
-      SELECT COUNT(*) INTO quantidade FROM funcionario WHERE pid = funcionario_id;
+      SELECT COUNT(*) INTO quantidade FROM funcionario WHERE pid = funcionario.id;
       
         IF quantidade = 1 THEN
 			BEGIN
-				SELECT nome INTO retorno FROM funcionario WHERE  funcionario_id = pid;
+				SELECT nome INTO retorno FROM funcionario WHERE funcionario.id = pid;
             END;
         ELSE
 			BEGIN
@@ -92,20 +92,23 @@ DELIMITER ;
 
 SELECT pegar_funcionario(3);
 
-DROP FUNCTION funcionariosApos;
+/**DROP FUNCTION funcionariosApos;**/
 DELIMITER //
 CREATE FUNCTION funcionariosApos(dt DATETIME)
-RETURNS DATETIME
+RETURNS VARCHAR (200)
 DETERMINISTIC
 BEGIN
-	DECLARE resultado DATETIME;
-	SELECT nome INTO resultado FROM funcionario WHERE data_cadastro >= dt;
-RETURN resultado;
+
+	DECLARE dados VARCHAR (200);
+    
+	SELECT GROUP_CONCAT(DISTINCT nome SEPARATOR ', ') INTO dados FROM funcionario WHERE funcionario.data_contratacao > dt;
+    
+RETURN dados;
 END;
 //
 DELIMITER ;
 
-SELECT *, funcionariosApos('2021-10-01');
+SELECT funcionariosApos('2020-10-01');
 
 CREATE TABLE telefone(
 id INT NOT NULL AUTO_INCREMENT
@@ -227,14 +230,43 @@ INSERT INTO ordem_serviço (valor,descriçao,pagamento,cliente_id,funcionario_id
 INSERT INTO ordem_serviço (valor,descriçao,pagamento,cliente_id,funcionario_id) VALUES (500.00,'Troca de Cabeamento Elétrico','parcelado',3,2);
 INSERT INTO ordem_serviço (valor,descriçao,pagamento,cliente_id,funcionario_id) VALUES (1000.00,'Instação do Quadro de Distribuição de Energia','avista',4,3);
 
-DROP FUNCTION calcula_comissao;**/
+/**DROP FUNCTION calcula_comissao;**/
+DELIMITER //
+CREATE FUNCTION calcula_comissao(classificacao VARCHAR (50))
+RETURNS DECIMAL (9,2) DETERMINISTIC
+BEGIN
+	DECLARE valor_comissao DECIMAL (9,2);
+    DECLARE classificacao VARCHAR (50);
+    DECLARE pagamento VARCHAR (50);
+    
+    SELECT pagamento INTO classificacao FROM ordem_serviço WHERE ordem_serviço.pagamento = classificacao;
+	
+    IF classificacao = 'avista'  THEN
+		BEGIN
+			SELECT (valor * 1.50) - valor INTO valor_comissao FROM ordem_serviço WHERE ordem_serviço.valor > 400;
+		END;
+	ElSE
+		BEGIN
+			SET valor_comissao = 0.00;
+		END;
+		END IF;
+	RETURN valor_comissao;
+END;
+//
+DELIMITER ;
+
+# Invocando a função
+SELECT calcula_comissao('avista') AS comissao;
+
+
+/**DROP FUNCTION calcula_comissao;
 DELIMITER //
 CREATE FUNCTION calcula_comissao(valor DECIMAL (9,2))
 RETURNS DECIMAL (9,2) DETERMINISTIC
 BEGIN
 	DECLARE valor_comissao DECIMAL (9,2);
-    
-	IF valor > 1000  THEN
+	
+    IF valor > 1000  THEN
 		BEGIN
 			SET valor_comissao = valor * 1.10 - valor;
 		END;
@@ -255,7 +287,7 @@ DELIMITER ;
 # Invocando a função
 SELECT *,calcula_comissao(ordem_serviço.valor) AS comissao
 FROM ordem_serviço
-WHERE pagamento = 'avista';
+WHERE pagamento = 'avista';**/
 
 
 SELECT *
@@ -338,24 +370,22 @@ INSERT INTO iten_compra (nome,quantidade,preço,compra_id,produto_id) VALUES ('I
 INSERT INTO iten_compra (nome,quantidade,preço,compra_id,produto_id) VALUES ('Caixa retangular 4" x 2"',6,15.00,4,4);
 INSERT INTO iten_compra (nome,quantidade,preço,compra_id,produto_id) VALUES ('Eletroduto de pvc',7,10.00,5,5);
 
-DROP FUNCTION caculo_itenCompra;
+/**DROP FUNCTION caculo_itenCompra;**/
 DELIMITER //
-CREATE FUNCTION caculo_itenCompra(quantidade INT, id INT) 
+CREATE FUNCTION caculo_itenCompra(cod INT) 
 RETURNS DECIMAL (9,2) DETERMINISTIC
 DETERMINISTIC
 BEGIN
-    DECLARE preço DECIMAL (9,2);
-    DECLARE quantidade INT;
     DECLARE resultado DECIMAL (9,2);
     
-	SELECT quantidade * preço INTO resultado FROM iten_compra WHERE quantidade = quantidade.iten_compra AND id = id.iten_compra;
+	SELECT quantidade * preço INTO resultado FROM iten_compra WHERE iten_compra.produto_id = cod;
 	
     RETURN resultado;
 END;
 //
 DELIMITER ;
 
-SELECT caculo_itenCompra(1,2);
+SELECT caculo_itenCompra(3);
 
 CREATE TABLE pagamento(
 id INT NOT NULL AUTO_INCREMENT
@@ -428,22 +458,30 @@ SELECT * FROM produto;
 
 DROP FUNCTION vidaUtilProduto;**/
 DELIMITER //
-CREATE FUNCTION vidaUtilProduto(id INT)
-RETURNS INT DETERMINISTIC
+CREATE FUNCTION vidaUtilProduto(coid INT)
+RETURNS VARCHAR (200) DETERMINISTIC
 BEGIN
 	DECLARE tempo INT;
-    DECLARE id INT;
+    DECLARE frase VARCHAR (200);
 	
-    SELECT vencimento, data_cadastro, DATEDIFF(vencimento, data_cadastro) INTO tempo FROM produto WHERE produto.id = id;
+    SELECT DATEDIFF(NOW(), vencimento) INTO tempo FROM produto WHERE produto.id = coid;
     
-	RETURN tempo;
+    IF tempo < 0 THEN
+		BEGIN
+			SET frase = "Produto Vencido";
+		END;
+	ElSE
+		BEGIN
+			SET frase = "Produto Válido";
+		END;
+		END IF;
+	RETURN frase;
 END;
 //
 DELIMITER ;
 
 # Invocando a função
-SELECT *,vidaUtilProduto(produto.id)
-FROM produto;
+SELECT vidaUtilProduto(3) AS 'Meses';
 
 SELECT nome,estoque FROM produto; /**Consulta de disponibilidade de produtos em estoque. Sua importancia é enorme para realizar novas compras, 
 pois assim saberemos quais produtos estão com poucas unidades em estoque**/
